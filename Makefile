@@ -17,17 +17,22 @@ SRCDIR=src
 KOBJS:=$(OBJDIR)/boot.o $(OBJDIR)/gdt.o $(OBJDIR)/interrupt.o $(OBJDIR)/process.o \
  $(OBJDIR)/common.o $(OBJDIR)/printf.o $(OBJDIR)/scanf.o $(OBJDIR)/descriptor_tables.o $(OBJDIR)/shell.o \
  $(OBJDIR)/isr.o $(OBJDIR)/kheap.o $(OBJDIR)/main.o $(OBJDIR)/ordered_array.o \
- $(OBJDIR)/paging.o $(OBJDIR)/syscall.o $(OBJDIR)/task.o $(OBJDIR)/timer.o $(OBJDIR)/kb.o $(OBJDIR)/bget.o \
- $(OBJDIR)/string.o $(OBJDIR)/stdio.o $(OBJDIR)/malloc.o $(OBJDIR)/errno.o $(OBJDIR)/unistd.o $(OBJDIR)/rtc.o $(OBJDIR)/serial.o $(OBJDIR)/ctype.o \
+ $(OBJDIR)/paging.o $(OBJDIR)/syscall.o $(OBJDIR)/task.o \
+ $(OBJDIR)/timer.o $(OBJDIR)/kb.o $(OBJDIR)/bget.o \
+ $(OBJDIR)/string.o $(OBJDIR)/stdio.o $(OBJDIR)/malloc.o \
+ $(OBJDIR)/errno.o $(OBJDIR)/unistd.o $(OBJDIR)/rtc.o $(OBJDIR)/serial.o $(OBJDIR)/ctype.o \
  $(OBJDIR)/math.o $(OBJDIR)/sin.o $(OBJDIR)/cos.o $(OBJDIR)/disc.o \
  $(OBJDIR)/dfs.o $(OBJDIR)/diskio.o $(OBJDIR)/ff.o $(OBJDIR)/ffsystem.o $(OBJDIR)/ffunicode.o \
  $(OBJDIR)/scheme.o  $(OBJDIR)/scheme-api.o $(OBJDIR)/environment.o $(OBJDIR)/util.o \
- $(OBJDIR)/basic.o $(OBJDIR)/elf-load.o $(OBJDIR)/elf-module-i386.o $(OBJDIR)/elf-module.o  $(OBJDIR)/sha-256.o \
- $(OBJDIR)/lzw.o $(OBJDIR)/db.o $(OBJDIR)/fasm.o $(OBJDIR)/fasm_io.o $(OBJDIR)/vi_simple.o $(OBJDIR)/disasm.o \
- $(OBJDIR)/pci.o $(OBJDIR)/qemu_vga.o $(OBJDIR)/framebuffer.o $(OBJDIR)/font.o $(OBJDIR)/terminal.o $(OBJDIR)/bitmap.o $(OBJDIR)/sound.o \
+ $(OBJDIR)/basic.o $(OBJDIR)/elf-load.o $(OBJDIR)/elf-module-i386.o $(OBJDIR)/elf-module.o  \
+ $(OBJDIR)/sha-256.o $(OBJDIR)/lzw.o $(OBJDIR)/db.o $(OBJDIR)/fasm.o $(OBJDIR)/fasm_io.o \
+ $(OBJDIR)/vi_simple.o $(OBJDIR)/disasm.o \
+ $(OBJDIR)/pci.o $(OBJDIR)/qemu_vga.o $(OBJDIR)/framebuffer.o \
+ $(OBJDIR)/font.o $(OBJDIR)/terminal.o $(OBJDIR)/bitmap.o $(OBJDIR)/sound.o \
  $(OBJDIR)/rtl8139.o $(OBJDIR)/ip.o $(OBJDIR)/icmp.o $(OBJDIR)/tcp.o \
  $(OBJDIR)/amp.o $(OBJDIR)/amp_cpu.o $(OBJDIR)/ap_startup.o \
- $(OBJDIR)/blockdev.o $(OBJDIR)/vfs.o $(OBJDIR)/fat_vfs.o $(OBJDIR)/devfs.o $(OBJDIR)/ramdisk.o $(OBJDIR)/fat32_format.o 
+ $(OBJDIR)/blockdev.o $(OBJDIR)/vfs.o $(OBJDIR)/fat_vfs.o $(OBJDIR)/devfs.o \
+ $(OBJDIR)/ramdisk.o $(OBJDIR)/fat32_format.o  $(OBJDIR)/rgl.o
 
 CPPFLAGS=-m32 -std=c++0x -ffreestanding  -fno-exceptions -fno-rtti -fno-stack-protector -I./include
 CFLAGS=-m32  -ffreestanding  -fno-stack-protector -I./include
@@ -89,6 +94,7 @@ $(OBJDIR)/vi_simple.o : $(SRCDIR)/user/vi_simple.c
 
 $(OBJDIR)/disasm.o : $(SRCDIR)/user/disasm.c
 	$(CC) $(CFLAGS) -c $(SRCDIR)/user/disasm.c -o $(OBJDIR)/disasm.o
+
 
 $(OBJDIR)/isr.o : $(SRCDIR)/kernel/isr.c
 	$(CC) $(CFLAGS) -c $(SRCDIR)/kernel/isr.c -o $(OBJDIR)/isr.o
@@ -213,9 +219,6 @@ $(OBJDIR)/elf-module.o : $(SRCDIR)/drivers/elf-module.c
 $(OBJDIR)/sha-256.o : $(SRCDIR)/libc/sha-256.c
 	$(CC) $(CFLAGS) -c $(SRCDIR)/libc/sha-256.c -o $(OBJDIR)/sha-256.o
 
-$(OBJDIR)/db.o : $(SRCDIR)/user/db.c
-	$(CC) $(CFLAGS) -c $(SRCDIR)/user/db.c -o $(OBJDIR)/db.o
-
 
 $(OBJDIR)/fasm.o : fasm/source/zx86/fasm.asm
 	fasm fasm/source/zx86/fasm.asm $(OBJDIR)/fasm.o
@@ -273,6 +276,12 @@ $(OBJDIR)/ramdisk.o : $(SRCDIR)/kernel/ramdisk.c
 
 $(OBJDIR)/fat32_format.o : $(SRCDIR)/kernel/fat32_format.c
 	$(CC) $(CFLAGS) -c $(SRCDIR)/kernel/fat32_format.c -o $(OBJDIR)/fat32_format.o
+
+$(OBJDIR)/db.o : $(SRCDIR)/user/db.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/user/db.c -o $(OBJDIR)/db.o
+
+$(OBJDIR)/rgl.o : $(SRCDIR)/user/rgl.c
+	$(CC) $(CFLAGS) -c $(SRCDIR)/user/rgl.c -o $(OBJDIR)/rgl.o
 
 .PHONY: clean
 clean:

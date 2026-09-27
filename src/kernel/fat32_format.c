@@ -1,10 +1,47 @@
-// fat32_format.c -- Simple FAT32 formatter for ramdisk
+// fat32_format.c -- Simple FAT formatter for ramdisk (writes FAT16 or FAT32
+// depending on volume size)
+//
+// FatFs classifies a volume as FAT12/16/32 purely by its CLUSTER COUNT,
+// regardless of what the boot sector's filesystem-type string claims (see
+// check_fs()/mount_volume() in ff.c). FAT32 requires >65525 clusters, which
+// even with the smallest (512-byte) clusters requires tens of MB - too
+// large to fit our modest in-heap ramdisk safely. So for small volumes we
+// write a proper FAT16 boot sector/layout instead (different field layout
+// after byte 36, and a fixed-size root directory area instead of a root
+// cluster).
 
 #include "common.h"
 #include "blockdev.h"
 #include "kheap.h"
 #include <stdint.h>
 #include <string.h>
+
+#define MAX_FAT16_CLUSTERS 65525
+#define MIN_FAT16_CLUSTERS 4085
+
+// FAT16 Boot Sector structure
+typedef struct __attribute__((packed)) {
+    uint8_t  jmp[3];
+    char     oem[8];
+    uint16_t bytes_per_sector;
+    uint8_t  sectors_per_cluster;
+    uint16_t reserved_sectors;
+    uint8_t  fat_count;
+    uint16_t root_entries;
+    uint16_t total_sectors_16;
+    uint8_t  media_type;
+    uint16_t fat_size_16;
+    uint16_t sectors_per_track;
+    uint16_t heads;
+    uint32_t hidden_sectors;
+    uint32_t total_sectors_32;
+    uint8_t  drive_number;
+    uint8_t  reserved1;
+    uint8_t  boot_signature;
+    uint32_t volume_id;
+    char     volume_label[11];
+    char     fs_type[8];
+} fat16_boot_sector_t;
 
 // FAT32 Boot Sector structure
 typedef struct __attribute__((packed)) {
@@ -37,8 +74,121 @@ typedef struct __attribute__((packed)) {
     char     fs_type[8];          // Filesystem type
 } fat32_boot_sector_t;
 
+static void set_volume_label(char *dest, const char *label) {
+    memset(dest, ' ', 11);
+    if (label) {
+        size_t label_len = strlen(label);
+        if (label_len > 11) label_len = 11;
+        memcpy(dest, label, label_len);
+    } else {
+        memcpy(dest, "RAMDISK   ", 11);
+    }
+}
+
+// Format a block device as FAT16 (used for volumes too small to legitimately
+// qualify as FAT32 by cluster count)
+static int fat16_format(blockdev_t *bdev, const char *label) {
+    uint32_t total_sectors = bdev->total_sectors;
+    uint32_t bytes_per_sector = bdev->sector_size;
+    uint8_t sectors_per_cluster = 1;   // 512-byte clusters
+    uint16_t reserved_sectors = 1;
+    uint8_t fat_count = 2;
+    uint16_t root_entries = 512;       // Standard root directory size
+    uint32_t root_dir_sectors = (root_entries * 32 + bytes_per_sector - 1) / bytes_per_sector;
+
+    // Two-pass FAT size calculation, same approach as the FAT32 path below.
+    uint32_t data_sectors = total_sectors - reserved_sectors - root_dir_sectors;
+    uint32_t clusters = data_sectors / sectors_per_cluster;
+    uint32_t fat_entries = clusters + 2;
+    uint32_t fat_size_sectors = (fat_entries * 2 + bytes_per_sector - 1) / bytes_per_sector;
+
+    data_sectors = total_sectors - reserved_sectors - (fat_count * fat_size_sectors) - root_dir_sectors;
+    clusters = data_sectors / sectors_per_cluster;
+
+    printf("fat32_format: %u sectors, %u clusters (FAT16), FAT size %u sectors\n",
+           total_sectors, clusters, fat_size_sectors);
+
+    if (clusters < MIN_FAT16_CLUSTERS || clusters > MAX_FAT16_CLUSTERS) {
+        printf("fat32_format: volume size unsuitable for FAT16 (%u clusters)\n", clusters);
+        return -1;
+    }
+
+    fat16_boot_sector_t *boot = (fat16_boot_sector_t*)kmalloc(bytes_per_sector);
+    if (!boot) {
+        printf("fat32_format: Failed to allocate boot sector\n");
+        return -1;
+    }
+    memset(boot, 0, bytes_per_sector);
+
+    boot->jmp[0] = 0xEB;
+    boot->jmp[1] = 0x3C;
+    boot->jmp[2] = 0x90;
+    memcpy(boot->oem, "MSWIN4.1", 8);
+    boot->bytes_per_sector = bytes_per_sector;
+    boot->sectors_per_cluster = sectors_per_cluster;
+    boot->reserved_sectors = reserved_sectors;
+    boot->fat_count = fat_count;
+    boot->root_entries = root_entries;
+    boot->total_sectors_16 = (total_sectors <= 0xFFFF) ? (uint16_t)total_sectors : 0;
+    boot->media_type = 0xF8;
+    boot->fat_size_16 = (uint16_t)fat_size_sectors;
+    boot->sectors_per_track = 63;
+    boot->heads = 255;
+    boot->hidden_sectors = 0;
+    boot->total_sectors_32 = (total_sectors <= 0xFFFF) ? 0 : total_sectors;
+    boot->drive_number = 0x80;
+    boot->boot_signature = 0x29;
+    boot->volume_id = 0x12345678;
+    set_volume_label(boot->volume_label, label);
+    memcpy(boot->fs_type, "FAT16   ", 8);
+
+    ((uint8_t*)boot)[510] = 0x55;
+    ((uint8_t*)boot)[511] = 0xAA;
+
+    int result = blockdev_write(bdev, 0, 1, boot);
+    uint8_t media_type = boot->media_type;
+    kfree(boot);
+    if (result != 0) {
+        printf("fat32_format: Failed to write boot sector\n");
+        return -1;
+    }
+
+    // Write both FATs (16-bit entries)
+    uint32_t fat_bytes = fat_size_sectors * bytes_per_sector;
+    uint8_t *fat_data = (uint8_t*)kmalloc(fat_bytes);
+    if (!fat_data) {
+        printf("fat32_format: Failed to allocate FAT data\n");
+        return -1;
+    }
+    memset(fat_data, 0, fat_bytes);
+    uint16_t *fat = (uint16_t*)fat_data;
+    fat[0] = 0xFF00 | media_type;
+    fat[1] = 0xFFFF;
+
+    uint32_t fat_start = reserved_sectors;
+    if (blockdev_write(bdev, fat_start, fat_size_sectors, fat_data) != 0 ||
+        blockdev_write(bdev, fat_start + fat_size_sectors, fat_size_sectors, fat_data) != 0) {
+        printf("fat32_format: Failed to write FAT tables\n");
+        kfree(fat_data);
+        return -1;
+    }
+    kfree(fat_data);
+
+    // Clear the (fixed-size) root directory area
+    uint32_t root_dir_start = reserved_sectors + (fat_count * fat_size_sectors);
+    uint8_t *root_data = (uint8_t*)kmalloc(root_dir_sectors * bytes_per_sector);
+    if (root_data) {
+        memset(root_data, 0, root_dir_sectors * bytes_per_sector);
+        blockdev_write(bdev, root_dir_start, root_dir_sectors, root_data);
+        kfree(root_data);
+    }
+
+    printf("fat32_format: Successfully formatted %s (FAT16)\n", bdev->name);
+    return 0;
+}
+
 // Format a block device with FAT32
-int fat32_format(blockdev_t *bdev, const char *label) {
+static int fat32_format_real(blockdev_t *bdev, const char *label) {
     if (!bdev) {
         printf("fat32_format: Invalid block device\n");
         return -1;
@@ -49,7 +199,11 @@ int fat32_format(blockdev_t *bdev, const char *label) {
     // Calculate FAT32 parameters based on device size
     uint32_t total_sectors = bdev->total_sectors;
     uint32_t bytes_per_sector = bdev->sector_size;
-    uint8_t sectors_per_cluster = 8;  // 4KB clusters for small devices
+    // FatFs picks FAT12/16/32 purely by cluster count (>65525 clusters => FAT32),
+    // regardless of what the boot sector claims. Small volumes need small clusters
+    // to reach that threshold, or they get misdetected as FAT12/16 and rejected
+    // since this formatter only writes valid FAT32-style fields (e.g. root_entries=0).
+    uint8_t sectors_per_cluster = 1;  // 512-byte clusters so small ramdisks still qualify as FAT32
     uint16_t reserved_sectors = 32;   // Standard for FAT32
     uint8_t fat_count = 2;            // Two FATs
     
@@ -100,17 +254,7 @@ int fat32_format(blockdev_t *bdev, const char *label) {
     boot->drive_number = 0x80;  // Hard disk
     boot->boot_signature = 0x29;
     boot->volume_id = 0x12345678;
-    
-    // Set volume label
-    memset(boot->volume_label, ' ', 11);
-    if (label) {
-        size_t label_len = strlen(label);
-        if (label_len > 11) label_len = 11;
-        memcpy(boot->volume_label, label, label_len);
-    } else {
-        memcpy(boot->volume_label, "RAMDISK   ", 11);
-    }
-    
+    set_volume_label(boot->volume_label, label);
     memcpy(boot->fs_type, "FAT32   ", 8);
     
     // Boot sector signature
@@ -178,4 +322,21 @@ int fat32_format(blockdev_t *bdev, const char *label) {
     
     printf("fat32_format: Successfully formatted %s\n", bdev->name);
     return 0;
+}
+
+int fat32_format(blockdev_t *bdev, const char *label) {
+    if (!bdev) {
+        printf("fat32_format: Invalid block device\n");
+        return -1;
+    }
+
+    // FatFs classifies FAT12/16/32 purely by cluster count (see comment at
+    // top of file). Estimate the cluster count with 512-byte clusters and
+    // pick whichever format the volume actually qualifies as.
+    uint32_t approx_clusters = bdev->total_sectors > 64 ? bdev->total_sectors - 64 : 0;
+
+    if (approx_clusters > MAX_FAT16_CLUSTERS) {
+        return fat32_format_real(bdev, label);
+    }
+    return fat16_format(bdev, label);
 }

@@ -79,7 +79,7 @@ int sh_mount(int argc, char **argv);
 int sh_unmount(int argc, char **argv);
 int sh_lsdev(int argc, char **argv);
 int sh_df(int argc, char **argv);
-
+int rgl_main(int argc, char **argv);
 typedef struct shellcommand
 {
 	const char *cmd;
@@ -128,6 +128,7 @@ shellcommand_t cmds[] =
 		{"mount", "mount filesystem", &sh_mount},
 		{"unmount", "unmount filesystem", &sh_unmount},
 		{"lsdev", "list block devices", &sh_lsdev},
+		{"rgl", "roguelike game", &rgl_main},
 		{"df", "display mounted filesystems", &sh_df}};
 
 int sh_num_cmds()
@@ -1793,8 +1794,8 @@ int sh_mount(int argc, char **argv) {
 	if (argc < 4) {
 		printf("Usage: mount <device> <mount_point> <filesystem_type>\n");
 		printf("Examples:\n");
-		printf("  mount disk0 / fat32      - Mount primary disk as root\n");
-		printf("  mount ramdisk0 /tmp fat32 - Mount RAM disk at /tmp\n");
+		printf("  mount disk0 / fat32   - Mount primary disk as root\n");
+		printf("  mount ram0 /tmp fat32 - Mount RAM disk at /tmp\n");
 		printf("  mount devfs /dev devfs    - Mount device filesystem\n");
 		return 1;
 	}

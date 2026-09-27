@@ -4,3 +4,4 @@ obj/*
 nul
 imgtool/*
 dosdisc.img
+.vscode

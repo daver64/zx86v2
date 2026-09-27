@@ -350,6 +350,15 @@ int vfs_close(int fd) {
         vp->v_op->vop_close(vp, fp->f_flag, &ctx);
     }
     
+    // Free the vnode itself, unless it's a persistent mount-root/root vnode
+    // (those are owned by the mount table and reused across lookups).
+    bool vp_is_persistent = (vp == vfs_root_vnode) ||
+        (vp->v_mount && vp->v_mount->mnt_rootvnode == vp);
+    if (!vp_is_persistent) {
+        kfree(vp->v_data);
+        kfree(vp);
+    }
+    
     // Free file structure
     kfree(fp);
     fd_table[fd] = NULL;
@@ -640,6 +649,12 @@ vnode_t *vfs_lookup(const char *path) {
             // Look for mount point
             for (mount_t *mp = vfs_mount_list; mp; mp = mp->mnt_next) {
                 if (strcmp(mp->mnt_path, current_path) == 0) {
+                    // child_vp was just allocated by vop_lookup above but we don't
+                    // need it - the mount's persistent root vnode takes its place.
+                    if (child_vp != mp->mnt_rootvnode) {
+                        kfree(child_vp->v_data);
+                        kfree(child_vp);
+                    }
                     child_vp = mp->mnt_rootvnode;
                     break;
                 }

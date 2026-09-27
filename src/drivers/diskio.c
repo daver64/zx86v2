@@ -9,6 +9,7 @@
 #include "common.h"
 #include "ff.h"			/* Obtains integer types */
 #include "diskio.h"		/* Declarations of disk functions */
+#include "blockdev.h"
 
 // Disk operation result codes
 #define DISK_SUCCESS          0
@@ -69,10 +70,11 @@ DSTATUS disk_status (
 			return 0;  // Drive ready
 			break;
 
-		case DEV_RAM :
-			// RAM disk is always ready if initialized
-			return 0;
-			break;
+		case DEV_RAM : {
+			// RAM disk is ready once its blockdev is registered
+			extern blockdev_t *blockdev_get(int minor);
+			return blockdev_get(pdrv) ? 0 : STA_NOINIT;
+		}
 
 	}
 	return STA_NOINIT;
@@ -106,10 +108,10 @@ DSTATUS disk_initialize (
 			return 0;  // Successfully initialized
 			break;
 
-		case DEV_RAM :
-			// RAM disk is always available and ready
-			return 0;
-			break;
+		case DEV_RAM : {
+			extern blockdev_t *blockdev_get(int minor);
+			return blockdev_get(pdrv) ? 0 : STA_NOINIT;
+		}
 	}
 	return STA_NOINIT;
 }
@@ -154,14 +156,18 @@ DRESULT disk_read (
 			return RES_OK;
 			break;
 
-		case DEV_RAM :
-			//printf("Ram Disc Read\n");
-			result = rdc_read_sectors(sector,count,buff);
-			if (result != DISK_SUCCESS) {
+		case DEV_RAM : {
+			// Route through the blockdev abstraction to the actual
+			// ram0 device registered by kernel/ramdisk.c - the legacy
+			// rdc_read_sectors() globals (ramdisc_start/end) are never set.
+			extern blockdev_t *blockdev_get(int minor);
+			extern int blockdev_read(blockdev_t *dev, uint64_t sector, uint32_t count, void *buffer);
+			blockdev_t *dev = blockdev_get(pdrv);
+			if (!dev || blockdev_read(dev, sector, count, buff) != 0) {
 				return RES_ERROR;
 			}
 			return RES_OK;
-			break;
+		}
 	}
 
 	return RES_PARERR;
@@ -209,14 +215,15 @@ DRESULT disk_write (
 			}
 			return RES_OK;
 			break;
-		case DEV_RAM :
-			//printf("Ram Disk Write\n");
-			result = rdc_write_sectors(sector,count,(void*)buff);
-			if (result != DISK_SUCCESS) {
+		case DEV_RAM : {
+			extern blockdev_t *blockdev_get(int minor);
+			extern int blockdev_write(blockdev_t *dev, uint64_t sector, uint32_t count, void *buffer);
+			blockdev_t *dev = blockdev_get(pdrv);
+			if (!dev || blockdev_write(dev, sector, count, (void*)buff) != 0) {
 				return RES_ERROR;
 			}
 			return RES_OK;
-			break;
+		}
 	}
 
 	return RES_PARERR;
@@ -250,10 +257,21 @@ DRESULT disk_ioctl (
 				return RES_OK;
 			}break;
 
-		case DEV_RAM :
-			result=0;
+		case DEV_RAM : {
+			extern blockdev_t *blockdev_get(int minor);
+			blockdev_t *dev = blockdev_get(pdrv);
+			if (!dev) {
+				return RES_ERROR;
+			}
+			if (cmd == GET_SECTOR_COUNT) {
+				*((LBA_t*)buff) = dev->total_sectors;
+			} else if (cmd == GET_SECTOR_SIZE) {
+				*((WORD*)buff) = dev->sector_size;
+			} else if (cmd == GET_BLOCK_SIZE) {
+				*((DWORD*)buff) = 1;
+			}
 			return RES_OK;
-			break;
+		}
 	}
 
 	return RES_PARERR;

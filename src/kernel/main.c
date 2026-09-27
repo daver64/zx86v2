@@ -194,14 +194,14 @@ int kmain(struct multiboot *mboot_ptr, uint32_t initial_stack)
     printf("MAIN: Starting shell...\n");
     
     // Setup ramdisk just before starting the shell (after all CPUs are settled)
-    // TODO: Re-enable ramdisk after fixing page fault issues with AMP system
-    // The ramdisk implementation is complete but causes page faults during secondary CPU operations
-    // Temporarily disable ramdisk to ensure system stability  
-    /*
     printf("Setting up ramdisk...\n");
     ramdisk_init();
     
-    // Create an 8MB ramdisk
+    // Create an 8MB ramdisk. fat32_format() automatically picks FAT16 (proper
+    // fixed-size root directory layout) for volumes this small, since FatFs
+    // classifies FAT12/16/32 purely by cluster count (>65525 clusters => FAT32),
+    // and reaching that threshold would require a much larger ramdisk than we
+    // want to carve out of the kernel heap.
     int ramdisk_id = ramdisk_create(8 * 1024 * 1024);
     if (ramdisk_id >= 0) {
         // Find the ramdisk block device by name
@@ -234,7 +234,6 @@ int kmain(struct multiboot *mboot_ptr, uint32_t initial_stack)
     } else {
         printf("Failed to create ramdisk\n");
     }
-    */
     
     switch_to_user_mode();
     

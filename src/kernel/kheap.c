@@ -73,7 +73,7 @@ static void expand(uint32_t new_size, heap_t *heap)
     ASSERT(new_size > heap->end_address - heap->start_address);
 
     // Get the nearest following page boundary.
-    if (new_size&0xFFFFF000 != 0)
+    if (new_size & 0xFFF)
     {
         new_size &= 0xFFFFF000;
         new_size += 0x1000;
@@ -101,9 +101,9 @@ static uint32_t contract(uint32_t new_size, heap_t *heap)
     ASSERT(new_size < heap->end_address-heap->start_address);
 
     // Get the nearest following page boundary.
-    if (new_size&0x1000)
+    if (new_size & 0xFFF)
     {
-        new_size &= 0x1000;
+        new_size &= 0xFFFFF000;
         new_size += 0x1000;
     }
 
@@ -112,6 +112,7 @@ static uint32_t contract(uint32_t new_size, heap_t *heap)
         new_size = HEAP_MIN_SIZE;
 
     uint32_t old_size = heap->end_address-heap->start_address;
+
     uint32_t i = old_size - 0x1000;
     while (new_size < i)
     {

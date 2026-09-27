@@ -79,8 +79,12 @@ void set_disk_sync_mode(int sync_mode);
 // Function to get primary disk sector count (from disc.c)
 uint32_t hdc_get_primary_sector_count(void);
 
+// Maps logical drive "N:" to physical drive N (pd) / partition (pt, 0=auto).
+// FF_VOLUMES entries must ALL be initialized - an omitted entry defaults to
+// {0,0}, silently aliasing that logical drive onto physical drive 0.
 PARTITION VolToPart[FF_VOLUMES] = {
-	{0, 1}};
+	{0, 1},
+	{1, 0}};
 
 unsigned int fgetsize(FILE *fp);
 void os_report_space();

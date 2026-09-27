@@ -280,7 +280,10 @@ static uint32_t first_frame()
 // Function to allocate a frame.
 void alloc_frame(page_t *page, int is_kernel, int is_writeable)
 {
-    if (page->frame != 0)
+    // Use 'present' (not 'frame') to detect an already-backed page: 'frame' is a
+    // 20-bit bitfield that can hold leftover nonzero garbage from whatever memory
+    // this page_t previously occupied, even though it was never actually mapped.
+    if (page->present)
     {
         return;
     }
@@ -306,13 +309,14 @@ void alloc_frame(page_t *page, int is_kernel, int is_writeable)
 // Function to deallocate a frame.
 void free_frame(page_t *page)
 {
-    uint32_t frame;
-    if (!(frame = page->frame))
+    // See alloc_frame(): 'present' is the authoritative flag, not 'frame'.
+    if (!page->present)
     {
         return;
     }
     else
     {
+        uint32_t frame = page->frame;
         clear_frame(frame);
         page->frame = 0x0;
         page->present = 0;  // Also clear present bit for safety
@@ -342,10 +346,11 @@ void initialise_paging()
     uint32_t framebuffer_start = 0xFD000000; // Start of framebuffer area
     uint32_t framebuffer_end = 0xFF000000;   // End of framebuffer area
     
-    // Calculate total frames needed (512MB + 32MB framebuffer area)
+    // Calculate total frames needed (512MB + 32MB framebuffer area + kernel heap)
     uint32_t low_frames = low_mem_end / 0x1000;
     uint32_t fb_frames = (framebuffer_end - framebuffer_start) / 0x1000;
-    nframes = low_frames + fb_frames;
+    uint32_t heap_frames = KHEAP_INITIAL_SIZE / 0x1000;	// Heap frames come from beyond the identity-mapped range
+    nframes = low_frames + fb_frames + heap_frames;
     
     frames = (uint32_t *)kmalloc(INDEX_FROM_BIT(nframes));
     memset((uint8_t *)frames, 0, INDEX_FROM_BIT(nframes) * 4);
@@ -775,6 +780,21 @@ page_t *get_page(uint32_t address, int make, page_directory_t *dir)
         
         memset((uint8_t *)dir->tables[table_idx], 0, sizeof(page_table_t));
         dir->tablesPhysical[table_idx] = tmp | 0x7; // PRESENT, RW, US.
+        
+        // current_directory is a boot-time clone that only shares kernel-space
+        // tables that existed in kernel_directory at clone time (see
+        // clone_directory()). Any table created afterwards - e.g. by the kernel
+        // heap growing past its initial reservation - must be mirrored here too,
+        // or the currently active directory will page-fault on it.
+        if (address * 0x1000 >= 0xC0000000) {
+            extern page_directory_t *kernel_directory;
+            extern page_directory_t *current_directory;
+            if (dir == kernel_directory && current_directory && current_directory != kernel_directory
+                && !current_directory->tables[table_idx]) {
+                current_directory->tables[table_idx] = dir->tables[table_idx];
+                current_directory->tablesPhysical[table_idx] = dir->tablesPhysical[table_idx];
+            }
+        }
         
         return &dir->tables[table_idx]->pages[address % 1024];
     }
