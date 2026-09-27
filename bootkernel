@@ -1,0 +1,4 @@
+#!/bin/bash
+
+#qemu-system-x86_64 -smp 2 -m 1024  -kernel kernel.bin -hda dosdisc.img > nul 2>&1
+qemu-system-x86_64 -smp 8 -m 1024 -kernel kernel.bin -hda dosdisc.img -vga std 

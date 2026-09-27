@@ -1,0 +1,1 @@
+set path=c:\windows;c:\users\daver\localapps\nasm;c:\users\daver\localapps\fasm;c:\users\daver\localapps\elf32\bin;"C:\Users\daver\AppData\Local\Programs\Microsoft VS Code\";C:\Users\daver\LocalApps\w64devkit\bin;C:\Users\daver\LocalApps\qemu;%cd%\bin;C:\Users\daver\source\vizero

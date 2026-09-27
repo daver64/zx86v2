@@ -1,0 +1,6 @@
+kernel.bin
+kernel.map
+obj/*
+nul
+imgtool/*
+dosdisc.img

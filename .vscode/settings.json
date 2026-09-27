@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "task.h": "c",
+        "paging.h": "c",
+        "common.h": "c",
+        "vga.h": "c",
+        "time.h": "c",
+        "stdbool.h": "c",
+        "errno.h": "c",
+        "cstdlib": "cpp",
+        "graphics.h": "c"
+    },
+    "files.exclude": {
+        "**/*.img": false
+    }
+}

@@ -1,0 +1,1 @@
+qemu-system-x86_64 -smp 8 -m 1024 -kernel kernel.bin -hda dosdisc.img -vga std -audiodev dsound,id=snd0 -device sb16,audiodev=snd0,iobase=0x220,irq=5,dma=1,dma16=5 -machine pcspk-audiodev=snd0 -netdev user,id=net0,hostfwd=tcp::2007-:7 -device rtl8139,netdev=net0 > nul 2>&1
