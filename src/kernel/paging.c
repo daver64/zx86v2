@@ -346,16 +346,16 @@ void initialise_paging()
     uint32_t framebuffer_start = 0xFD000000; // Start of framebuffer area
     uint32_t framebuffer_end = 0xFF000000;   // End of framebuffer area
     
-    // Calculate total frames needed (512MB + 32MB framebuffer area + kernel heap)
+    // Include enough extra frames for the initial kernel heap and libc pool.
     uint32_t low_frames = low_mem_end / 0x1000;
     uint32_t fb_frames = (framebuffer_end - framebuffer_start) / 0x1000;
-    uint32_t heap_frames = KHEAP_INITIAL_SIZE / 0x1000;	// Heap frames come from beyond the identity-mapped range
+    uint32_t heap_frames = (KHEAP_INITIAL_SIZE + LIBC_HEAP_SIZE) / 0x1000;
     nframes = low_frames + fb_frames + heap_frames;
     
-    frames = (uint32_t *)kmalloc(INDEX_FROM_BIT(nframes));
+    frames = (uint32_t *)kmalloc(INDEX_FROM_BIT(nframes) * sizeof(uint32_t));
     memset((uint8_t *)frames, 0, INDEX_FROM_BIT(nframes) * 4);
 
-    printf("initialise_paging: allocated %u frames (512MB + framebuffer)\n", nframes);
+    printf("initialise_paging: allocated %u frames (512MB + framebuffer + heap reserve)\n", nframes);
 
     // printf("initialise paging : num frames=%d ",nframes);
     //  Let's make a page directory.
@@ -429,7 +429,7 @@ void initialise_paging()
     switch_page_directory(kernel_directory);
 
     // Initialise the kernel heap.
-    kheap = create_heap(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE, 0xCFFFF000, 0, 0);
+    kheap = create_heap(KHEAP_START, KHEAP_START + KHEAP_INITIAL_SIZE, 0xDFFFF000, 0, 0);
 
     current_directory = clone_directory(kernel_directory);
     switch_page_directory(current_directory);

@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <unistd.h> 
 #include <limits.h>
 #include <math.h>
 #include <string.h>
@@ -38,6 +39,7 @@ int print_exit_code = true;
 int allowpromptoverwrite = false;
 int plen_active = true;
 int plen = 0;
+static int32_t sh_getline_count = -1;
 
 int os_ls(int argc, char **argv);
 int sh_ls(int argc, char **argv);
@@ -80,6 +82,8 @@ int sh_unmount(int argc, char **argv);
 int sh_lsdev(int argc, char **argv);
 int sh_df(int argc, char **argv);
 int rgl_main(int argc, char **argv);
+int sh_tasklist(int argc, char **argv);
+int sh_test(int argc, char **argv);
 typedef struct shellcommand
 {
 	const char *cmd;
@@ -123,6 +127,7 @@ shellcommand_t cmds[] =
 		{"amp_exec", "execute ELF process on secondary CPU", &sh_amp_exec},
 		{"net", "network card commands", &sh_net},
 		{"exec", "execute process by PID", &sh_exec},
+		{"tasks", "list running tasks", &sh_tasklist},
 		{"date", "display current date", &sh_date},
 		{"set-mode", "set graphics video mode", &sh_set_mode},
 		{"mount", "mount filesystem", &sh_mount},
@@ -280,8 +285,64 @@ int sh_test(int argc, char **args)
 	printf("Available commands: create, fill, pattern\n");
 	return 1;
 }
-				
-				
+	
+#include "task.h"
+extern volatile task_t *ready_queue;
+extern volatile task_t *current_task;
+
+int sh_tasklist(int argc, char **argv)
+{
+	(void)argc;
+	(void)argv;
+
+	volatile task_t *head = ready_queue;
+	volatile task_t *task = head;
+	int task_count = 0;
+	const int max_tasks = 128;
+
+	if (!task)
+	{
+		printf("No tasks found\n");
+		return 0;
+	}
+
+	printf("PID  * EIP      ESP      EBP      DIR      KSTACK\n");
+	while (task && task_count < max_tasks)
+	{
+		printf("%4d %c %08X %08X %08X %08X %08X\n",
+			task->id,
+			task == current_task ? '*' : ' ',
+			task->eip,
+			task->esp,
+			task->ebp,
+			(uint32_t)task->page_directory,
+			task->kernel_stack);
+
+		if (task->memory_layout)
+		{
+			process_memory_layout_t *layout = task->memory_layout;
+			printf("     code %08X-%08X heap %08X-%08X stack %08X-%08X\n",
+				layout->code_start,
+				layout->code_end,
+				layout->heap_start,
+				layout->heap_end,
+				layout->stack_bottom,
+				layout->stack_top);
+		}
+
+		task_count++;
+		volatile task_t *next = task->next;
+		if (next == head)
+			break;
+		task = next;
+	}
+
+	if (task && task_count == max_tasks)
+		printf("Task list truncated after %d entries\n", max_tasks);
+
+	printf("%d task(s)\n", task_count);
+	return 0;
+}
 int sh_basic(int argc, char **args)
 {
 	int result = basic_main(argc, args);
@@ -1113,6 +1174,13 @@ void get_next_character()
 	ctok = getchar();
 	if (!allowpromptoverwrite)
 	{
+		if (ctok == '\b' && sh_getline_count == 0)
+			return;
+		if (sh_getline_count >= 0)
+		{
+			cputchar(ctok);
+			return;
+		}
 		int len = strlen(prompt); //+plen;
 		if (plen_active)
 			len += plen;
@@ -1219,6 +1287,7 @@ int32_t sh_getline(char *buffer, int32_t buflen)
 	ctok = 0;
 	while (ctok != '\n' && count < buflen - 1) // Fix: Reserve space for null terminator
 	{
+		sh_getline_count = count;
 		get_next_character();
 		if (ctok == VK_UP)
 		{
@@ -1230,7 +1299,10 @@ int32_t sh_getline(char *buffer, int32_t buflen)
 			b = *(command_history + h_index);
 			if (b)
 			{
-				int aplen = strlen(prompt) + plen;
+				char cdirbuffer[VFS_MAXPATHLEN]={0};
+				getcwd(cdirbuffer, VFS_MAXPATHLEN);
+				int dplen=strlen(cdirbuffer);
+				int aplen = strlen(prompt) + dplen;
 				int px = get_cursor_x();
 				while (px > aplen)
 				{
@@ -1257,6 +1329,7 @@ int32_t sh_getline(char *buffer, int32_t buflen)
 			buffer[count] = 0;
 		}
 	}
+	sh_getline_count = -1;
 	buffer[count] = '\0'; // Fix: Always null terminate
 	if (ctok == '\n')
 	{

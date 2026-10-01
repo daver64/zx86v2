@@ -723,7 +723,7 @@ static void setup_cpu_stacks(void) {
     printf("AMP: Setting up CPU stacks...\n");
     
     // Use a safe area after the kernel heap but before shared memory
-    // Kernel heap: 0xC0000000 - 0xC4000000 (64MB)
+    // Kernel heap: 0xC0000000 - 0xC8000000 (128MB initially)
     // Shared memory: 0xF0000000
     // Safe area: 0xE0000000 - 0xEF000000 (240MB gap)
     uint32_t stack_area_base = 0xE0000000; 

@@ -79,7 +79,7 @@ void *simple_cpu_executor(void *args)
     sprintf(debug_msg, "SERIAL: simple_cpu_executor - Testing kmalloc on CPU %d\n", current_cpu);
     serial_puts(debug_msg);
 
-    void *test_ptr = kmalloc(32);
+    void *test_ptr = (void*)kmalloc(32);
     if (test_ptr)
     {
         sprintf(debug_msg, "SERIAL: simple_cpu_executor - kmalloc succeeded: 0x%08X\n", (uint32_t)test_ptr);
@@ -760,7 +760,7 @@ int os_create_elf_process(void *elf_data, size_t elf_size)
     sprintf(debug_msg, "SERIAL: os_create_elf_process - About to allocate 64 bytes for kernel code copy\n");
     serial_puts(debug_msg);
     
-    new_task->kernel_code_copy = kmalloc(64); // Allocate kernel memory for ELF code
+    new_task->kernel_code_copy = (void*)kmalloc(64); // Allocate kernel memory for ELF code
     
     sprintf(debug_msg, "SERIAL: os_create_elf_process - kmalloc(64) returned: 0x%08X\n", 
             (uint32_t)new_task->kernel_code_copy);

@@ -10,7 +10,8 @@
 #include "ordered_array.h"
 
 #define KHEAP_START         0xC0000000
-#define KHEAP_INITIAL_SIZE  (0x100000 * 64)
+#define KHEAP_INITIAL_SIZE  (0x100000 * 128)
+#define LIBC_HEAP_SIZE      (0x100000 * 256)
 
 #define VALLOC_START 0xB0000000
 #define VALLOC_END 0xBA000000

@@ -25,8 +25,8 @@ uint32_t get_libc_heap_size()
 void malloc_init()
 {
 	uint32_t *heap_start_physical=(uint32_t*)1;
-	heap_start = kmalloc_int(0x800000, 1, heap_start_physical);
-	heap_end=heap_start + 0x800000;
+	heap_start = kmalloc_int(LIBC_HEAP_SIZE, 1, heap_start_physical);
+	heap_end=heap_start + LIBC_HEAP_SIZE;
 	//printf("malloc heap start virt=0x%08X : phys=0x%08X\n",heap_start,*((uint32_t*)heap_start_physical));
 	bpool((void *)heap_start, (bufsize)(heap_end - heap_start));
 	libc_heap_start=heap_start;

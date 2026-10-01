@@ -4,8 +4,8 @@
 //          Rewritten for JamesM's kernel development tutorials.
 //
 
-#include "common.h"
 #include "isr.h"
+#include "common.h"
 #include "graphics.h"
 #include "syscall.h"
 isr_t interrupt_handlers[256];
@@ -14,43 +14,41 @@ void register_interrupt_handler(uint8_t n, isr_t handler)
 {
     interrupt_handlers[n] = handler;
 }
-unsigned char *exception_messages[] =
-    {
-        "Division By Zero",
-        "Debug",
-        "Non Maskable Interrupt",
-        "Breakpoint",
-        "Into Detected Overflow",
-        "Out of Bounds",
-        "Invalid Opcode",
-        "No Coprocessor",
+unsigned char *exception_messages[] = {"Division By Zero",
+                                       "Debug",
+                                       "Non Maskable Interrupt",
+                                       "Breakpoint",
+                                       "Into Detected Overflow",
+                                       "Out of Bounds",
+                                       "Invalid Opcode",
+                                       "No Coprocessor",
 
-        "Double Fault",
-        "Coprocessor Segment Overrun",
-        "Bad TSS",
-        "Segment Not Present",
-        "Stack Fault",
-        "General Protection Fault",
-        "Page Fault",
-        "Unknown Interrupt",
+                                       "Double Fault",
+                                       "Coprocessor Segment Overrun",
+                                       "Bad TSS",
+                                       "Segment Not Present",
+                                       "Stack Fault",
+                                       "General Protection Fault",
+                                       "Page Fault",
+                                       "Unknown Interrupt",
 
-        "Coprocessor Fault",
-        "Alignment Check",
-        "Machine Check",
-        "Reserved",
-        "Reserved",
-        "Reserved",
-        "Reserved",
-        "Reserved",
+                                       "Coprocessor Fault",
+                                       "Alignment Check",
+                                       "Machine Check",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
 
-        "Reserved",
-        "Reserved",
-        "Reserved",
-        "Reserved",
-        "Reserved",
-        "Reserved",
-        "Reserved",
-        "Reserved"};
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved",
+                                       "Reserved"};
 // This gets called from our ASM interrupt handler stub.
 void isr_handler(registers_t regs)
 {
@@ -71,7 +69,7 @@ void isr_handler(registers_t regs)
         if (int_no < 32)
         {
             puts(exception_messages[int_no]);
-            
+
             printf("Interrupt Number %02X (%u)\n", regs.int_no, regs.int_no);
             printf("EIP %08X\n", regs.eip);
             printf("ESP %08X\n", regs.esp);
@@ -116,13 +114,7 @@ void irq_handler(registers_t regs)
         isr_t handler = interrupt_handlers[actual_int];
         handler(&regs);
     }
-    else
-    {
 
-        //  syscall_os_puts("no handler for");
-        //  monitor_write_dec(actual_int );
-        //   syscall_os_puts("\n");
-    }
     if (regs.int_no >= 40)
     {
         // Send reset signal to slave.
